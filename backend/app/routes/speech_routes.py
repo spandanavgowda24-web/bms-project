@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from database.db import interactions_collection, responses_collection
-
+from werkzeug.utils import secure_filename
+import os
 # Create Blueprint
 speech_bp = Blueprint("speech_bp", __name__)
 
@@ -123,4 +124,33 @@ def conversation_timeline(session_id):
         "interactions": interactions,
         "responses": responses
     })
+# ==============================
+# Speech File Upload API
+# ==============================
+@speech_bp.route("/upload-speech", methods=["POST"])
+def upload_speech():
+
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        return jsonify({"error": "Empty filename"}), 400
+
+    # Secure filename
+    filename = secure_filename(file.filename)
+
+    # Save path
+    upload_folder = "uploads"
+    file_path = os.path.join(upload_folder, filename)
+
+    # Save file
+    file.save(file_path)
+
+    return jsonify({
+        "message": "File uploaded successfully",
+        "file_path": file_path
+    })
+
 
