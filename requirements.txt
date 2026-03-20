@@ -1,0 +1,7 @@
+flask
+flask-cors
+pymongo
+pyjwt
+moviepy
+openai-whisper
+pyttsx3

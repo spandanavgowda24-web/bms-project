@@ -1,0 +1,6 @@
+models/
+indic_nlp_resources/
+uploads/
+__pycache__/
+*.pyc
+.env
