@@ -1,71 +1,93 @@
-import spacy
 import re
 
-# English NLP (unchanged)
-nlp = spacy.load("en_core_web_sm")
+def detect_steps(text, language="en"):
 
+    if not text:
+        return []
 
-def detect_steps(text):
+    text = text.strip()
 
-    import re
-
-    sentences = re.split(r'[.!?]', text)
+    # =============================
+    # 🔥 SPLIT SENTENCES
+    # =============================
+    sentences = re.split(r'[.!?।]', text)
 
     steps = []
 
-    action_verbs = [
-        "add","apply","take","use","mix","put","heat","wash","cut","boil",
-        "start","pour","cook","dry","clean","press","open","close","insert"
-    ]
+    # =============================
+    # 🔥 ENGLISH LOGIC
+    # =============================
+    if language == "en":
 
-    connectors = ["first", "then", "next", "after", "finally"]
+        action_verbs = [
+            "add","apply","take","use","mix","put","heat","wash","cut","boil",
+            "start","pour","cook","dry","clean","press","open","close","insert"
+        ]
 
-    ignore_phrases = [
-        "hi", "hello", "welcome", "good morning", "good evening",
-        "today", "guys", "friends", "my name", "thanks",
-        "i think", "i like", "i love", "i prefer"
-    ]
+        connectors = ["first", "then", "next", "after", "finally"]
 
-    for s in sentences:
+        ignore_phrases = [
+            "hi", "hello", "welcome", "good morning", "good evening",
+            "today", "guys", "friends", "my name", "thanks"
+        ]
 
-        line = s.strip().lower()
+        for s in sentences:
 
-        if len(line) < 10:
-            continue
+            line = s.strip().lower()
 
-        # ❌ remove useless talk
-        if any(p in line for p in ignore_phrases):
-            continue
+            if len(line) < 10:
+                continue
 
-        # ❌ remove personal talk
-        if line.startswith("i "):
-            continue
+            if any(p in line for p in ignore_phrases):
+                continue
 
-        # ✅ keep if sequence words
-        if any(c in line for c in connectors):
-            steps.append(line.capitalize())
-            continue
+            if line.startswith("i "):
+                continue
 
-        # ✅ keep if starts with action
-        words = line.split()
-        if words and words[0] in action_verbs:
-            steps.append(line.capitalize())
-            continue
+            if any(c in line for c in connectors):
+                steps.append(line.capitalize())
+                continue
 
-        # ✅ keep if strong action sentence
-        if any(v in line for v in action_verbs):
-            if len(words) <= 15:
+            words = line.split()
+
+            if words and words[0] in action_verbs:
+                steps.append(line.capitalize())
+                continue
+
+            if any(v in line for v in action_verbs) and len(words) <= 15:
                 steps.append(line.capitalize())
 
-    # remove duplicates
+    # =============================
+    # 🔥 HINDI / KANNADA (FIXED)
+    # =============================
+    else:
+
+        for s in sentences:
+
+            line = s.strip()
+
+            if len(line) < 15:
+                continue
+
+            # ❌ remove useless talk
+            if any(x in line.lower() for x in ["hello", "welcome"]):
+                continue
+
+            # 🔥 SIMPLE RULE: keep meaningful lines
+            steps.append(line)
+
+    # =============================
+    # 🔥 REMOVE DUPLICATES
+    # =============================
     final_steps = []
     for s in steps:
         if s not in final_steps:
             final_steps.append(s)
 
-    return final_steps
+    # =============================
+    # 🔥 FINAL FIX (IMPORTANT)
+    # =============================
+    if len(final_steps) < 2:
+        return []   # will become summary
 
-    # =============================
-    # UNKNOWN LANGUAGE
-    # =============================
-    return [text]
+    return final_steps

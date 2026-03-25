@@ -1,60 +1,22 @@
-from flask import Blueprint, jsonify, request
-from services.tts_service import generate_speech
+from flask import Blueprint, jsonify
 import os, uuid, re
 
 from services.audio_extractor import extract_audio
 from services.whisper_service import transcribe_audio
+from services.step_detector import detect_steps   # ✅ USE THIS
 
 analysis_bp = Blueprint("analysis_bp", __name__)
 UPLOAD_FOLDER = "uploads"
 
 
-# 🔥 IMPROVED STEP DETECTOR (BALANCED)
-def ai_detect_steps(text):
+def safe_lang(lang):
+    return lang if lang in ["en", "hi", "kn"] else "en"
 
-    sentences = re.split(
-        r'[.!?\n]|'
-        r'\b(?:then|next|after that|and then|now|finally)\b',
-        text,
-        flags=re.IGNORECASE
-    )
 
-    steps = []
-
-    action_words = [
-        "add","mix","apply","use","start","take","put",
-        "open","click","press","select","install","run",
-        "create","fill","pour","heat","cook","insert",
-        "connect","cut","wash","boil","remove","combine"
-    ]
-
-    for s in sentences:
-        line = s.strip()
-        lower = line.lower()
-
-        # ❌ ignore too small
-        if len(line) < 12:
-            continue
-
-        # ❌ remove intro only
-        if lower.startswith(("hi", "hello", "welcome", "today", "so guys")):
-            continue
-
-        # ✅ allow natural instructions also
-        if (
-            any(w in lower for w in action_words)
-            or lower.startswith(("first", "next", "then", "after"))
-            or lower.startswith(("i use", "you can", "now you", "let's"))
-        ):
-            steps.append(line.capitalize())
-
-    # 🔥 remove duplicates
-    final_steps = []
-    for s in steps:
-        if s not in final_steps:
-            final_steps.append(s)
-
-    return final_steps
+# 🔥 FAST SUMMARY
+def generate_summary(text):
+    sentences = re.split(r'[.!?\n]', text)
+    return ". ".join([s.strip() for s in sentences if len(s.strip()) > 20][:2])
 
 
 @analysis_bp.route("/analyze/<filename>", methods=["GET"])
@@ -68,60 +30,53 @@ def analyze_file(filename):
 
         audio_path = os.path.join(UPLOAD_FOLDER, str(uuid.uuid4()) + ".wav")
 
-        try:
-            extract_audio(path, audio_path)
-        except:
-            audio_path = path
+        # 🔥 FAST AUDIO EXTRACTION
+        if not extract_audio(path, audio_path):
+            return jsonify({"error": "Audio extraction failed"})
 
+        # 🔥 WHISPER
         result = transcribe_audio(audio_path)
-        raw_text = result.get("text", "")
 
-        if not raw_text or len(raw_text.strip()) < 10:
-            return jsonify({"error": "No speech detected"}), 400
+        raw_text = result.get("text", "").strip()
+        detected_lang = safe_lang(result.get("language", "en"))
 
-        # 🔥 LIMIT (performance)
-        raw_text = raw_text[:800]
+        if not raw_text:
+            return jsonify({"error": "Audio not clear"})
 
+        raw_text = raw_text[:1000]   # 🔥 LIMIT FOR SPEED
+
+        print("🌍 LANG:", detected_lang)
         print("TEXT:", raw_text)
 
-        steps = ai_detect_steps(raw_text)
+        # 🔥 USE NEW STEP DETECTOR
+        steps = detect_steps(raw_text, detected_lang)
 
-        print("STEPS:", steps)
+        # =============================
+        # 🔥 STEP RESPONSE (FAST)
+        # =============================
+        if len(steps) >= 2:
 
-        # 🔥 COUNT SENTENCES
-        total_sentences = len([s for s in re.split(r'[.!?\n]', raw_text) if s.strip()])
-
-        print("TOTAL SENTENCES:", total_sentences)
-
-        # 🔥 SMART DECISION (FINAL FIX)
-        if (
-            steps
-            and len(steps) >= 2
-            and len(steps) >= max(2, int(total_sentences * 0.2))
-        ):
-
-            steps = steps[:6]
-
-            audio_files = []
-            for s in steps:
-                f = generate_speech(s, "en")
-                if f:
-                    audio_files.append(f)
+            steps = steps[:5]
 
             return jsonify({
                 "type": "steps",
-                "content": steps,
-                "audio": audio_files,
-                "language": "en"
+                "content_en": steps,   # ⚡ NO TRANSLATION (FAST)
+                "content_hi": steps,
+                "content_kn": steps,
+                "language": detected_lang
             })
 
-        # 🔥 SUMMARY (BETTER LENGTH)
-        summary = raw_text[:500]
+        # =============================
+        # 🔥 SUMMARY (FAST)
+        # =============================
+        summary = generate_summary(raw_text)
 
         return jsonify({
             "type": "summary",
-            "content": summary,
-            "language": "en"
+            "content_en": summary,
+            "content_hi": summary,
+            "content_kn": summary,
+            "language": detected_lang
         })
 
     except Exception as e:
