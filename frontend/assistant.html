@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Video Guide - Assistant</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: linear-gradient(135deg, #0b0f25, #141428); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: white; min-height: 100vh; }
+.page { display: flex; flex-direction: column; height: 100vh; }
+.navbar { display: flex; justify-content: space-between; align-items: center; background: #020617; padding: 12px 24px; border-bottom: 1px solid #1e2040; flex-shrink: 0; }
+.navbar-title { font-size: 15px; color: #00d4ff; font-weight: 700; }
+.nav-links a { color: #94a3b8; text-decoration: none; font-size: 13px; margin-left: 20px; transition: color 0.2s; }
+.nav-links a:hover { color: #00d4ff; }
+.main { display: flex; flex: 1; overflow: hidden; }
+.panel { width: 380px; flex-shrink: 0; background: #0f1228; border-right: 1px solid #1e2040; display: flex; flex-direction: column; overflow-y: auto; padding: 16px; gap: 14px; }
+.video-area { flex: 1; display: flex; flex-direction: column; background: #060818; overflow: hidden; }
+.video-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
+video { max-width: 100%; max-height: 100%; border-radius: 12px; background: #000; }
+.card { background: #141428; border: 1px solid #1e2040; border-radius: 14px; padding: 14px 16px; }
+.card-title { font-size: 11px; font-weight: 700; color: #00d4ff; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+.status-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #1c1c35; border-radius: 8px; border: 1px solid #2a2a50; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+.status-dot.ready { background: #10b981; }
+.status-dot.loading { background: #f59e0b; animation: blink 0.8s infinite; }
+.status-dot.speaking { background: #00d4ff; animation: blink 0.6s infinite; }
+.status-dot.listening { background: #7c3aed; animation: blink 0.5s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+#statusText { font-size: 12px; color: #94a3b8; flex: 1; }
+.progress-wrap { height: 4px; background: #1c1c35; border-radius: 4px; margin-bottom: 10px; overflow: hidden; }
+.progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #00cfe8, #7c3aed); transition: width 0.4s ease; }
+.step-display { background: #1c1c35; border: 1px solid #2a2a50; border-radius: 10px; padding: 14px; min-height: 80px; }
+.step-num { font-size: 10px; color: #00d4ff; font-weight: 700; margin-bottom: 5px; }
+.step-txt { font-size: 14px; line-height: 1.6; color: #e2e8f0; }
+.summary-box { background: #0f2a1a; border: 1px solid #10b981; border-radius: 10px; padding: 12px; font-size: 13px; color: #6ee7b7; line-height: 1.6; display: none; margin-top: 10px; }
+.controls-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.ctrl-group label { font-size: 10px; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+select { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #2a2a50; background: #1c1c35; color: white; font-size: 12px; outline: none; cursor: pointer; }
+select:focus { border-color: #00d4ff; }
+.btn { width: 100%; padding: 11px; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+.btn:active { transform: scale(0.97); }
+.btn-start { background: linear-gradient(90deg, #00cfe8, #00d4ff); color: #0b0f25; margin-top: 5px; }
+.btn-mic { background: linear-gradient(90deg, #7c3aed, #6d28d9); color: white; margin-top: 8px; }
+.btn-mic.active { background: linear-gradient(90deg, #10b981, #059669); animation: pulse 1.4s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+.nav-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-top: 12px; }
+.btn-nav { padding: 8px 4px; border-radius: 8px; border: 1px solid #2a2a50; background: #1c1c35; color: #ccc; font-size: 11px; cursor: pointer; text-align: center; }
+.btn-nav:hover { border-color: #00d4ff; color: #00d4ff; }
+.btn-nav:disabled { opacity: 0.35; cursor: not-allowed; }
+.steps-scroll { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+.step-item { padding: 7px 10px; border-radius: 7px; font-size: 12px; color: #888; background: #1c1c35; border: 1px solid transparent; cursor: pointer; transition: all 0.15s; }
+.step-item:hover { border-color: #2a2a50; color: #ccc; }
+.step-item.active { background: #0f2a3d; border-color: #00d4ff; color: #00d4ff; font-weight: 700; }
+.step-item .snum { color: #00d4ff; font-weight: 700; font-size: 11px; margin-right: 8px; }
+.video-controls { padding: 12px 20px; display: flex; gap: 10px; background: #060818; border-top: 1px solid #1e2040; flex-shrink: 0; }
+.btn-vid { padding: 8px 18px; border-radius: 8px; border: 1px solid #2a2a50; background: #1c1c35; color: #ccc; font-size: 12px; cursor: pointer; }
+.btn-vid:hover { border-color: #00d4ff; color: #00d4ff; }
+.loading-overlay { display: none; position: fixed; inset: 0; background: rgba(11,15,37,0.95); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+.loading-overlay.show { display: flex; }
+.spinner { width: 50px; height: 50px; border: 3px solid #1e2040; border-top-color: #00d4ff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-msg { font-size: 14px; color: #94a3b8; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="navbar">
+    <div class="navbar-title">AI Video Guide</div>
+    <div class="nav-links">
+      <a href="home_feed.html">Home</a>
+      <a href="upload_video.html">Upload</a>
+      <a href="home.html">AI Guide</a>
+      <a href="my_account.html">My Account</a>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="panel">
+      <div class="status-bar">
+        <div class="status-dot" id="statusDot"></div>
+        <div id="statusText">Loading video...</div>
+      </div>
+      <div class="progress-wrap"><div class="progress-fill" id="progressFill"></div></div>
+      
+      <div class="card">
+        <div class="card-title">Current Step</div>
+        <div class="step-display empty" id="stepDisplay">
+          <div class="step-num" id="stepNum" style="display:none;"></div>
+          <div class="step-txt" id="stepTxt">Click "Start Guide" to begin</div>
+        </div>
+        <div class="summary-box" id="summaryBox"></div>
+      </div>
+
+      <div class="nav-row">
+        <button class="btn-nav" id="btnFirst" onclick="goFirst()" disabled>First</button>
+        <button class="btn-nav" id="btnPrev" onclick="goPrev()" disabled>Prev</button>
+        <button class="btn-nav" id="btnNext" onclick="goNext()" disabled>Next</button>
+        <button class="btn-nav" id="btnRepeat" onclick="repeatStep()" disabled>Repeat</button>
+      </div>
+
+      <button class="btn btn-start" id="startBtn" onclick="startGuide()">Start Guide</button>
+      <button class="btn btn-mic" id="micBtn" onclick="toggleMic()">Start Voice Control</button>
+
+      <div class="card">
+        <div class="card-title">Settings (Voice Controlled)</div>
+        <div class="controls-row">
+          <div class="ctrl-group">
+            <label>Language</label>
+            <select id="langSelect">
+              <option value="en">English</option>
+              <option value="hi">Hindi</option>
+              <option value="kn">Kannada</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <label>Voice</label>
+            <select id="voiceSelect">
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <label>Speed</label>
+            <select id="speedSelect">
+              <option value="normal">Normal</option>
+              <option value="slow">Slow</option>
+              <option value="fast">Fast</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="stepsCard" style="display:none;">
+        <div class="card-title">All Steps</div>
+        <div class="steps-scroll" id="stepsList"></div>
+      </div>
+    </div>
+
+    <div class="video-area">
+      <div class="video-wrap">
+        <video id="videoPlayer" controls></video>
+      </div>
+      <div class="video-controls">
+        <button class="btn-vid" onclick="videoEl.play()">Play</button>
+        <button class="btn-vid" onclick="videoEl.pause()">Pause</button>
+        <button class="btn-vid" onclick="videoEl.currentTime=0">Restart</button>
+        <span style="font-size:12px;color:#555;margin-left:8px;" id="videoTime">0:00</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-msg" id="loadingMsg">Analyzing video...</div>
+</div>
+
+<script>
+const SERVER = "http://127.0.0.1:5000";
+
+let steps = [], steps_en = [], steps_hi = [], steps_kn = [];
+let currentStep = 0;
+let currentAudio = null;
+let awaitingConsent = false;
+let pendingSteps = null;
+let pendingSummary = null;
+let isVoiceActive = false;
+let isSpeaking = false;
+let welcomeSpoken = false;
+let recognition = null;
+let lastLanguageChange = "";
+
+const statusDot = document.getElementById("statusDot");
+const statusText = document.getElementById("statusText");
+const progressFill = document.getElementById("progressFill");
+const stepTxt = document.getElementById("stepTxt");
+const stepNum = document.getElementById("stepNum");
+const summaryBox = document.getElementById("summaryBox");
+const stepsList = document.getElementById("stepsList");
+const stepsCard = document.getElementById("stepsCard");
+const videoEl = document.getElementById("videoPlayer");
+const loadingOverlay = document.getElementById("loadingOverlay");
+const loadingMsg = document.getElementById("loadingMsg");
+const langSelect = document.getElementById("langSelect");
+const voiceSelect = document.getElementById("voiceSelect");
+const speedSelect = document.getElementById("speedSelect");
+const micBtn = document.getElementById("micBtn");
+
+const params = new URLSearchParams(window.location.search);
+const filename = params.get("video");
+
+if(filename){
+  videoEl.src = SERVER + "/uploads/" + filename;
+  setStatus("Ready. Click Start Guide","ready");
+} else {
+  setStatus("No video specified","error");
+}
+
+function setStatus(msg,type){
+  statusText.innerText = msg;
+  statusDot.className = "status-dot "+type;
+}
+
+function showLoading(msg) {
+  loadingMsg.textContent = msg;
+  loadingOverlay.classList.add("show");
+  setStatus(msg, "loading");
+}
+
+function hideLoading() {
+  loadingOverlay.classList.remove("show");
+  if (isVoiceActive) {
+    setStatus("Voice active. Give commands", "listening");
+  } else {
+    setStatus("Ready", "ready");
+  }
+}
+
+function speak(text) {
+  if (!text) return;
+  if (isSpeaking) return;
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  
+  isSpeaking = true;
+  setStatus("Speaking...", "speaking");
+  
+  fetch(`${SERVER}/generate-audio`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: text,
+      lang: langSelect.value,
+      voice: voiceSelect.value,
+      speed: speedSelect.value
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.audio) {
+      currentAudio = new Audio(`${SERVER}/tts/${data.audio}`);
+      currentAudio.onended = () => {
+        isSpeaking = false;
+        if (isVoiceActive) setStatus("Voice active. Give commands", "listening");
+        else setStatus("Ready", "ready");
+      };
+      currentAudio.play().catch(e => { isSpeaking = false; });
+    } else { isSpeaking = false; }
+  })
+  .catch(err => { isSpeaking = false; });
+}
+
+function updateProgress(stepIndex, totalSteps) {
+  if (totalSteps > 0) progressFill.style.width = `${((stepIndex + 1) / totalSteps) * 100}%`;
+}
+
+function updateStepsByLanguage() {
+  const currentLang = langSelect.value;
+  if (currentLang === "hi" && steps_hi.length) steps = steps_hi;
+  else if (currentLang === "kn" && steps_kn.length) steps = steps_kn;
+  else steps = steps_en;
+}
+
+function playStep() {
+  if (!steps.length) return;
+  if (isSpeaking) return;
+  
+  stepNum.style.display = "block";
+  stepNum.innerText = `Step ${currentStep + 1} of ${steps.length}`;
+  stepTxt.innerText = steps[currentStep];
+  updateProgress(currentStep, steps.length);
+  speak(steps[currentStep]);
+  
+  if (currentStep === steps.length - 1) {
+    setTimeout(() => {
+      if (!isSpeaking) speak("All steps completed. Guide finished.");
+    }, 1000);
+  }
+}
+
+function goFirst() { if (steps.length) { currentStep = 0; playStep(); } }
+function goNext() { if (steps.length && currentStep < steps.length - 1) { currentStep++; playStep(); } }
+function goPrev() { if (steps.length && currentStep > 0) { currentStep--; playStep(); } }
+function repeatStep() { if (steps.length) playStep(); }
+
+function updateButtons() {
+  const hasSteps = steps && steps.length > 0;
+  document.getElementById("btnFirst").disabled = !hasSteps;
+  document.getElementById("btnPrev").disabled = !hasSteps || currentStep === 0;
+  document.getElementById("btnNext").disabled = !hasSteps || currentStep === steps.length-1;
+  document.getElementById("btnRepeat").disabled = !hasSteps;
+}
+
+function renderSteps() {
+  if (!steps.length) return;
+  stepsList.innerHTML = "";
+  steps.forEach((s, i) => {
+    let div = document.createElement("div");
+    div.className = `step-item ${i === currentStep ? "active" : ""}`;
+    div.innerHTML = `<span class="snum">${i+1}</span> ${s.substring(0, 100)}`;
+    div.onclick = () => { currentStep = i; playStep(); };
+    stepsList.appendChild(div);
+  });
+  stepsCard.style.display = "block";
+}
+
+async function startGuide() {
+  if(!filename){
+    setStatus("No video file","error");
+    return;
+  }
+
+  showLoading("Analyzing your video. Please wait...");
+  speak("Analyzing your video. Please wait.");
+  setStatus("Analyzing video...","loading");
+
+  try{
+    const response = await fetch(SERVER+"/analyze/"+filename);
+    const data = await response.json();
+
+    summaryBox.style.display = "none";
+    stepsCard.style.display = "none";
+
+    if(data.type === "steps" && data.content_en && data.content_en.length >= 2){
+      steps_en = data.content_en;
+      steps_hi = data.content_hi || steps_en;
+      steps_kn = data.content_kn || steps_en;
+      pendingSteps = steps_en;
+      awaitingConsent = true;
+      
+      const stepCount = steps_en.length;
+      stepTxt.innerText = `Found ${stepCount} steps! Say "START" to begin.`;
+      setStatus(`Found ${stepCount} steps. Say START to begin`, "ready");
+      speak(`Found ${stepCount} instructions. Say start to begin.`);
+    } 
+    else if(data.type === "summary" && data.content_en){
+      pendingSummary = data.content_en;
+      awaitingConsent = true;
+      summaryBox.innerText = pendingSummary;
+      summaryBox.style.display = "block";
+      stepTxt.innerText = "Summary generated. Say 'YES' to hear summary.";
+      setStatus("Summary ready. Say YES", "ready");
+      speak("No clear step-by-step instructions found. A summary is available. Say yes to hear the summary.");
+    }
+    else if(data.type === "error"){
+      stepTxt.innerText = data.content_en;
+      setStatus("Error", "error");
+      speak(data.content_en);
+    }
+    else {
+      stepTxt.innerText = "Could not detect clear instructions. Please try a different video.";
+      setStatus("No instructions detected", "error");
+      speak("Could not detect clear instructions from this video. Please try a different video.");
+    }
+
+  } catch(error){
+    setStatus("Analysis failed", "error");
+    speak("Analysis failed. Please try again.");
+  } finally {
+    hideLoading();
+  }
+}
+
+function toggleMic() {
+  if(!('webkitSpeechRecognition' in window)){
+    speak("Voice recognition requires Chrome or Edge browser.");
+    return;
+  }
+
+  if(recognition && isVoiceActive){
+    recognition.stop();
+    isVoiceActive = false;
+    micBtn.classList.remove("active");
+    setStatus("Voice stopped","ready");
+    speak("Voice control stopped.");
+    welcomeSpoken = false;
+    return;
+  }
+
+  recognition = new webkitSpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+
+  recognition.onstart = () => {
+    isVoiceActive = true;
+    micBtn.classList.add("active");
+    setStatus("Voice active. Give commands", "listening");
+    if(!welcomeSpoken){
+      speak("Voice active. Give commands.");
+      welcomeSpoken = true;
+    }
+  };
+
+  recognition.onresult = (event) => {
+    let command = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
+        command = event.results[i][0].transcript.toLowerCase().trim();
+        break;
+      }
+    }
+    if(command){
+      console.log("Command:", command);
+      processCommand(command);
+    }
+  };
+
+  recognition.onerror = (event) => {
+    if(event.error === "not-allowed"){
+      speak("Microphone access denied.");
+      isVoiceActive = false;
+      micBtn.classList.remove("active");
+    }
+  };
+
+  recognition.onend = () => {
+    if(isVoiceActive){
+      try { recognition.start(); } catch(e) { 
+        isVoiceActive = false;
+        micBtn.classList.remove("active");
+      }
+    }
+  };
+
+  try { recognition.start(); } catch(e) { speak("Could not start voice recognition."); }
+}
+
+function processCommand(cmd) {
+  if(isSpeaking) return;
+
+  // Consent for steps
+  if(awaitingConsent && pendingSteps && pendingSteps.length > 0){
+    if(cmd === "start" || cmd.includes("start") || cmd === "begin"){
+      awaitingConsent = false;
+      steps = pendingSteps;
+      currentStep = 0;
+      renderSteps();
+      updateButtons();
+      stepNum.style.display = "block";
+      stepNum.innerText = `Step 1 of ${steps.length}`;
+      stepTxt.innerText = steps[0];
+      playStep();
+      setStatus(`Playing step 1 of ${steps.length}`, "speaking");
+      return;
+    }
+  }
+  
+  // Consent for summary
+  if(awaitingConsent && pendingSummary){
+    if(cmd === "yes" || cmd.includes("yes")){
+      awaitingConsent = false;
+      speak(pendingSummary);
+      setStatus("Playing summary", "speaking");
+      return;
+    }
+    else if(cmd === "no" || cmd.includes("no")){
+      awaitingConsent = false;
+      stepTxt.innerText = "Cancelled.";
+      setStatus("Cancelled", "ready");
+      speak("Cancelled.");
+      return;
+    }
+  }
+
+  // Navigation commands
+  if(steps.length > 0){
+    if(cmd === "next" || cmd.includes("next")){ goNext(); return; }
+    if(cmd === "previous" || cmd.includes("previous") || cmd === "back"){ goPrev(); return; }
+    if(cmd === "repeat" || cmd.includes("repeat") || cmd === "again"){ repeatStep(); return; }
+    if(cmd === "first" || cmd === "beginning"){ goFirst(); return; }
+    if(cmd === "stop" || cmd === "pause" || cmd.includes("stop")){
+      if(currentAudio){ currentAudio.pause(); setStatus("Stopped", "ready"); speak("Stopped."); }
+      return;
+    }
+    const stepMatch = cmd.match(/step (\d+)/);
+    if(stepMatch){
+      const stepNum = parseInt(stepMatch[1]) - 1;
+      if(stepNum >= 0 && stepNum < steps.length){
+        currentStep = stepNum;
+        playStep();
+        return;
+      }
+    }
+  }
+
+  // Language commands
+  if((cmd === "english" || cmd.includes("english")) && lastLanguageChange !== "en"){
+    langSelect.value = "en";
+    updateStepsByLanguage();
+    speak("English selected.");
+    lastLanguageChange = "en";
+    return;
+  }
+  if((cmd === "hindi" || cmd.includes("hindi")) && lastLanguageChange !== "hi"){
+    langSelect.value = "hi";
+    updateStepsByLanguage();
+    speak("Hindi selected.");
+    lastLanguageChange = "hi";
+    return;
+  }
+  if((cmd === "kannada" || cmd.includes("kannada")) && lastLanguageChange !== "kn"){
+    langSelect.value = "kn";
+    updateStepsByLanguage();
+    speak("Kannada selected.");
+    lastLanguageChange = "kn";
+    return;
+  }
+
+  // Voice type commands
+  if(cmd === "female" || cmd.includes("female")){
+    voiceSelect.value = "female";
+    speak("Female voice.");
+    return;
+  }
+  if(cmd === "male" || cmd.includes("male")){
+    voiceSelect.value = "male";
+    speak("Male voice.");
+    return;
+  }
+
+  // Speed commands
+  if(cmd === "slow" || cmd.includes("slow")){
+    speedSelect.value = "slow";
+    speak("Slow speed.");
+    return;
+  }
+  if(cmd === "fast" || cmd.includes("fast")){
+    speedSelect.value = "fast";
+    speak("Fast speed.");
+    return;
+  }
+  if(cmd === "normal" || cmd.includes("normal")){
+    speedSelect.value = "normal";
+    speak("Normal speed.");
+    return;
+  }
+
+  // Help
+  if(cmd === "help" || cmd.includes("help")){
+    speak("Commands: start, next, previous, repeat, stop, step number. Language: English, Hindi, Kannada. Voice: female, male. Speed: slow, fast, normal.");
+    return;
+  }
+}
+
+langSelect.onchange = function() {
+  updateStepsByLanguage();
+  if(steps.length > 0 && currentStep < steps.length){
+    stepTxt.innerText = steps[currentStep];
+    renderSteps();
+  }
+};
+
+videoEl.addEventListener("timeupdate", () => {
+  const minutes = Math.floor(videoEl.currentTime / 60);
+  const seconds = Math.floor(videoEl.currentTime % 60);
+  document.getElementById("videoTime").innerText = minutes + ":" + seconds.toString().padStart(2,'0');
+});
+</script>
+</body>
+</html>
