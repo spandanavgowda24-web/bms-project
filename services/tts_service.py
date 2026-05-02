@@ -1,13 +1,15 @@
 import asyncio
 import edge_tts
-import uuid
 import os
-from functools import lru_cache
+import hashlib
+import pyttsx3
 
 OUTPUT_FOLDER = "tts_audio"
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 🔥 HUMAN VOICES (BEST AVAILABLE)
+engine = pyttsx3.init()
+
+# 🔥 FIX: better voice mapping
 VOICE_MAP = {
     "en_female": "en-IN-NeerjaNeural",
     "en_male": "en-IN-PrabhatNeural",
@@ -17,43 +19,80 @@ VOICE_MAP = {
     "kn_male": "kn-IN-GaganNeural"
 }
 
+
 # =========================
-# 🔥 ASYNC EDGE (FASTER)
+# CLEAN TEXT
+# =========================
+def clean_for_tts(text):
+    import re
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text[:150]   # ✅ allow more words
+
+
+# =========================
+# CACHE FILE
+# =========================
+def get_filename(text, lang, voice, speed):
+    key = f"{text}_{lang}_{voice}_{speed}"
+    return hashlib.md5(key.encode()).hexdigest() + ".mp3"
+
+
+# =========================
+# EDGE TTS
 # =========================
 async def edge_generate(text, voice, rate, path):
-    communicate = edge_tts.Communicate(
-        text=text,
-        voice=voice,
-        rate=rate
-    )
-    await communicate.save(path)
+    try:
+        communicate = edge_tts.Communicate(
+            text=text,
+            voice=voice,
+            rate=rate
+        )
+        await communicate.save(path)
+        return True
+    except Exception as e:
+        print("❌ EDGE FAIL:", e)
+        return False
 
 
 # =========================
-# 🔥 CACHE (NO REPEAT GENERATION)
+# OFFLINE TTS (FIXED)
 # =========================
-@lru_cache(maxsize=100)
-def cached_filename(text, language, voice, speed):
-    return f"{hash(text+language+voice+speed)}.mp3"
+def offline_tts(text, path):
+    try:
+        engine.setProperty('rate', 170)  # ✅ speed fix
+        engine.save_to_file(text, path)
+        engine.runAndWait()
+
+        if os.path.exists(path):
+            return True
+
+    except Exception as e:
+        print("❌ OFFLINE FAIL:", e)
+
+    return False
 
 
 # =========================
-# 🔥 MAIN FUNCTION (FAST + STABLE)
+# MAIN FUNCTION (FIXED)
 # =========================
 def generate_speech(text, language="en", voice="female", speed="normal"):
 
     if not text:
         return None
 
-    text = text[:120]   # 🔥 SHORT = FAST RESPONSE
+    text = clean_for_tts(text)
 
-    filename = cached_filename(text, language, voice, speed)
+    filename = get_filename(text, language, voice, speed)
     path = os.path.join(OUTPUT_FOLDER, filename)
 
-    # 🔥 IF ALREADY GENERATED → INSTANT RESPONSE
+    # ✅ CACHE HIT
     if os.path.exists(path):
-        print("⚡ CACHE HIT")
+        print("⚡ USING CACHED AUDIO")
         return filename
+
+    # 🔥 SAFE LANGUAGE
+    if language not in ["en", "hi", "kn"]:
+        language = "en"
 
     selected_voice = VOICE_MAP.get(
         f"{language}_{voice}",
@@ -61,21 +100,40 @@ def generate_speech(text, language="en", voice="female", speed="normal"):
     )
 
     rate_map = {
-        "slow": "-20%",
+        "slow": "-15%",
         "normal": "+0%",
-        "fast": "+25%"
+        "fast": "+15%"
     }
 
     rate = rate_map.get(speed, "+0%")
 
     # =========================
-    # 🔥 EDGE TTS (PRIMARY)
+    # TRY EDGE TTS
     # =========================
     try:
-        asyncio.run(edge_generate(text, selected_voice, rate, path))
-        print("✅ EDGE:", selected_voice)
-        return filename
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        success = loop.run_until_complete(
+            edge_generate(text, selected_voice, rate, path)
+        )
+
+        loop.close()
+
+        if success and os.path.exists(path):
+            print("✅ EDGE AUDIO SUCCESS")
+            return filename
 
     except Exception as e:
-        print("❌ EDGE FAILED:", e)
-        return None
+        print("❌ EDGE ERROR:", e)
+
+    # =========================
+    # 🔥 FALLBACK (ALWAYS SPEAK)
+    # =========================
+    print("⚡ USING OFFLINE VOICE")
+
+    if offline_tts(text, path):
+        return filename
+
+    print("❌ TOTAL TTS FAILED")
+    return None

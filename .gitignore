@@ -1,6 +1,7 @@
 models/
 indic_nlp_resources/
 uploads/
+venv/
 __pycache__/
 *.pyc
 .env

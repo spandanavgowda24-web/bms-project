@@ -1,93 +1,125 @@
+# services/step_detector.py - FIXED (Lower threshold)
 import re
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 def detect_steps(text, language="en"):
-
-    if not text:
+    """
+    Extract steps from transcript - LOWER THRESHOLD
+    """
+    if not text or len(text.strip()) < 20:
+        logger.warning(f"Text too short: {len(text) if text else 0}")
         return []
 
-    text = text.strip()
-
-    # =============================
-    # 🔥 SPLIT SENTENCES
-    # =============================
-    sentences = re.split(r'[.!?।]', text)
-
     steps = []
+    text_lower = text.lower()
 
-    # =============================
-    # 🔥 ENGLISH LOGIC
-    # =============================
-    if language == "en":
+    # Split into sentences
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 15]
 
+    # Method 1: Numbered steps (1., 2., etc.)
+    for s in sentences:
+        if re.match(r'^\d+\.', s):
+            step_text = re.sub(r'^\d+\.\s*', '', s)
+            if len(step_text) > 10:
+                steps.append(step_text)
+
+    # Method 2: Step markers (first, then, next, etc.)
+    if len(steps) < 2:
+        step_markers = [
+            'first', 'then', 'next', 'after', 'finally', 'step',
+            'पहले', 'फिर', 'अगला', 'बाद', 'अंत में',
+            'ಮೊದಲು', 'ನಂತರ', 'ಮುಂದೆ', 'ಕೊನೆಯಲ್ಲಿ'
+        ]
+        current_step = []
+        for s in sentences:
+            s_lower = s.lower()
+            is_new_step = any(marker in s_lower for marker in step_markers)
+            if is_new_step and current_step:
+                steps.append(' '.join(current_step))
+                current_step = [s]
+            else:
+                current_step.append(s)
+        if current_step:
+            steps.append(' '.join(current_step))
+
+    # Method 3: Action verbs
+    if len(steps) < 2:
         action_verbs = [
-            "add","apply","take","use","mix","put","heat","wash","cut","boil",
-            "start","pour","cook","dry","clean","press","open","close","insert"
+            'add', 'pour', 'mix', 'stir', 'boil', 'cook', 'heat', 'cut', 'chop',
+            'open', 'click', 'go', 'select', 'press', 'type', 'save', 'put', 'take',
+            'डालें', 'मिलाएं', 'पकाएं', 'काटें', 'खोलें',
+            'ಸೇರಿಸಿ', 'ಬೆರೆಸಿ', 'ಬೇಯಿಸಿ', 'ಕತ್ತರಿಸಿ', 'ತೆರೆಯಿರಿ'
         ]
-
-        connectors = ["first", "then", "next", "after", "finally"]
-
-        ignore_phrases = [
-            "hi", "hello", "welcome", "good morning", "good evening",
-            "today", "guys", "friends", "my name", "thanks"
-        ]
-
         for s in sentences:
+            if any(verb in s.lower() for verb in action_verbs):
+                if len(s) > 20:
+                    steps.append(s)
 
-            line = s.strip().lower()
+    # Method 4: Split by common instructional transitions
+    if len(steps) < 2:
+        transitions = [' then ', ' next ', ' after that ', ' finally ', ' now ']
+        for trans in transitions:
+            if trans in text_lower:
+                parts = text_lower.split(trans)
+                for part in parts:
+                    if len(part) > 20:
+                        steps.append(part.strip().capitalize())
+                break
 
-            if len(line) < 10:
-                continue
-
-            if any(p in line for p in ignore_phrases):
-                continue
-
-            if line.startswith("i "):
-                continue
-
-            if any(c in line for c in connectors):
-                steps.append(line.capitalize())
-                continue
-
-            words = line.split()
-
-            if words and words[0] in action_verbs:
-                steps.append(line.capitalize())
-                continue
-
-            if any(v in line for v in action_verbs) and len(words) <= 15:
-                steps.append(line.capitalize())
-
-    # =============================
-    # 🔥 HINDI / KANNADA (FIXED)
-    # =============================
-    else:
-
+    # Method 5: Take all meaningful sentences as steps
+    if len(steps) < 2 and len(sentences) >= 2:
         for s in sentences:
+            if len(s) > 25 and len(s.split()) >= 4:
+                steps.append(s)
 
-            line = s.strip()
+    # Clean steps
+    cleaned = []
+    for step in steps:
+        step = step.strip()
+        if step:
+            step = step[0].upper() + step[1:] if len(step) > 1 else step
+            if step and step[-1] not in '.!?':
+                step += '.'
+            cleaned.append(step)
 
-            if len(line) < 15:
-                continue
+    # Remove duplicates
+    unique = []
+    seen = set()
+    for step in cleaned:
+        key = step.lower()[:50]
+        if key not in seen:
+            seen.add(key)
+            unique.append(step)
 
-            # ❌ remove useless talk
-            if any(x in line.lower() for x in ["hello", "welcome"]):
-                continue
+    # If still no steps, create from transcript (force as instructional)
+    if len(unique) < 1 and len(text) > 50:
+        # Split by periods and take first few as steps
+        parts = re.split(r'\.\s+', text)
+        for part in parts[:5]:
+            if len(part) > 20:
+                unique.append(part.strip().capitalize() + '.')
 
-            # 🔥 SIMPLE RULE: keep meaningful lines
-            steps.append(line)
+    logger.info(f"✅ Detected {len(unique)} steps")
+    return unique[:10]
 
-    # =============================
-    # 🔥 REMOVE DUPLICATES
-    # =============================
-    final_steps = []
-    for s in steps:
-        if s not in final_steps:
-            final_steps.append(s)
 
-    # =============================
-    # 🔥 FINAL FIX (IMPORTANT)
-    # =============================
-    if len(final_steps) < 2:
-        return []   # will become summary
+def generate_summary(text, steps=None):
+    """Generate summary from text"""
+    if not text:
+        return "No content to summarize."
 
-    return final_steps
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+
+    if not sentences:
+        return text[:200] if len(text) > 200 else text
+
+    if steps and len(steps) > 0:
+        return f"This video contains {len(steps)} steps.\n\n" + ". ".join(sentences[:2])
+
+    return ". ".join(sentences[:2]) if len(sentences) >= 2 else sentences[0][:200]

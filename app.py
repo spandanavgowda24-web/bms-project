@@ -1,3 +1,4 @@
+# app.py - UPDATED with translation endpoint
 from flask import Flask, send_from_directory, request, jsonify
 from flask_cors import CORS
 
@@ -37,7 +38,6 @@ def serve_audio(filename):
     return send_from_directory("tts_audio", filename)
 
 
-# ✅ FIXED AUDIO API (WITH SPEED)
 @app.route("/generate-audio", methods=["POST"])
 def generate_audio_api():
     try:
@@ -46,12 +46,12 @@ def generate_audio_api():
         text = data.get("text", "")
         lang = data.get("lang", "en")
         voice = data.get("voice", "female")
-        speed = data.get("speed", "normal")   # ✅ FIX
+        speed = data.get("speed", "normal")
 
         if not text:
             return jsonify({"error": "No text"}), 400
 
-        file = generate_speech(text, lang, voice, speed)  # ✅ FIX
+        file = generate_speech(text, lang, voice, speed)
 
         if not file:
             return jsonify({"error": "TTS failed"}), 500
@@ -63,5 +63,29 @@ def generate_audio_api():
         return jsonify({"error": "Server error"}), 500
 
 
+# Translation test endpoint
+@app.route("/test-translate", methods=["POST"])
+def test_translate():
+    try:
+        from services.translator import translate_list
+
+        data = request.json
+        text = data.get("text", "Hello, welcome to the AI Voice Guide")
+        target = data.get("target", "hi")
+
+        result = translate_list([text], target)
+
+        return jsonify({
+            "original": text,
+            "translated": result[0] if result else text,
+            "target": target,
+            "success": True
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "success": False}), 500
+
+
 if __name__ == "__main__":
+    print("\n🚀 Starting AI Voice Guide Backend...")
+    print("📢 Translation support: English, Hindi, Kannada")
     app.run(host="0.0.0.0", port=5000, debug=True)
