@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Voice Guide - Personal Assistant</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: linear-gradient(135deg, #0b0f25, #141428); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: white; min-height: 100vh; }
+.wrapper { width: 95%; max-width: 550px; margin: 20px auto; }
+.header { text-align: center; padding: 20px 0; }
+.header h1 { font-size: 24px; color: #00d4ff; font-weight: 600; }
+.header p { font-size: 13px; color: #94a3b8; }
+.card { background: #141428; border: 1px solid #1e2040; border-radius: 16px; padding: 20px; margin-bottom: 15px; }
+.card-title { font-size: 11px; font-weight: 600; color: #00d4ff; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+input, select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #2a2a50; background: #1c1c35; color: white; margin-bottom: 10px; font-size: 14px; }
+input:focus, select:focus { outline: none; border-color: #00d4ff; }
+.btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 5px; transition: all 0.2s; }
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: linear-gradient(90deg, #00cfe8, #00d4ff); color: #0b0f25; }
+.btn-mic { background: linear-gradient(90deg, #7c3aed, #6d28d9); color: white; }
+.btn-mic.active { background: linear-gradient(90deg, #10b981, #059669); animation: pulse 1s infinite; }
+.btn-test { background: linear-gradient(90deg, #10b981, #059669); color: white; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+.controls-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.control-group label { font-size: 10px; color: #64748b; display: block; margin-bottom: 5px; }
+.status-bar { display: flex; align-items: center; gap: 10px; padding: 12px; background: #1c1c35; border-radius: 10px; margin-bottom: 10px; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; }
+.status-dot.ready { background: #10b981; }
+.status-dot.listening { background: #7c3aed; animation: blink 0.5s infinite; }
+.status-dot.speaking { background: #00d4ff; animation: blink 0.3s infinite; }
+.status-dot.loading { background: #f59e0b; animation: blink 0.8s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+#statusText { font-size: 13px; color: #94a3b8; flex: 1; }
+.progress-wrap { height: 4px; background: #1c1c35; border-radius: 4px; margin-bottom: 10px; overflow: hidden; }
+.progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #00cfe8, #7c3aed); transition: width 0.3s; }
+.step-display { background: #1c1c35; border: 1px solid #2a2a50; border-radius: 12px; padding: 16px; min-height: 100px; }
+.step-number { font-size: 10px; color: #00d4ff; margin-bottom: 8px; font-weight: bold; }
+.step-text { color: #e2e8f0; line-height: 1.5; font-size: 14px; white-space: pre-wrap; }
+.button-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+.action-btn { padding: 12px; border-radius: 10px; border: none; background: #1c1c35; color: #00d4ff; cursor: pointer; font-size: 13px; font-weight: 600; }
+.action-btn:active { transform: scale(0.95); }
+.action-btn.primary { background: #00d4ff; color: #0b0f25; }
+.loading-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.95); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; gap: 20px; }
+.loading-overlay.show { display: flex; }
+.spinner { width: 60px; height: 60px; border: 4px solid #1e2040; border-top-color: #00d4ff; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { color: #00d4ff; font-size: 16px; margin-top: 10px; }
+.info-note { background: #1c1c35; border-radius: 8px; padding: 10px; margin-top: 10px; font-size: 11px; color: #64748b; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>AI Voice Guide</h1>
+    <p>Kannada • Hindi • English - Personal Voice Assistant</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">UPLOAD MEDIA</div>
+    <input type="file" id="fileInput" accept="video/*">
+    <button class="btn btn-primary" id="uploadBtn">Upload & Analyze</button>
+    <div style="margin: 10px 0; text-align: center; color: #334155;">━━━━ OR ━━━━</div>
+    <input type="text" id="linkInput" placeholder="Paste YouTube link">
+    <button class="btn btn-primary" id="linkBtn">Import from Link</button>
+    <button class="btn btn-test" id="testVideoBtn">Load Example (5 steps)</button>
+    <div class="info-note">Note: Videos uploaded here are personal and will not appear in public feed</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">SETTINGS (Voice Controlled)</div>
+    <div class="controls-row">
+      <div class="control-group">
+        <label>LANGUAGE</label>
+        <select id="langSelect">
+          <option value="en">English</option>
+          <option value="hi">Hindi</option>
+          <option value="kn">Kannada</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>VOICE</label>
+        <select id="voiceSelect">
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>SPEED</label>
+        <select id="speedSelect">
+          <option value="normal">Normal</option>
+          <option value="slow">Slow</option>
+          <option value="fast">Fast</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">GUIDANCE</div>
+    
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <div id="statusText">Click microphone to start</div>
+    </div>
+    
+    <div class="progress-wrap">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    
+    <div class="step-display" id="stepDisplay">
+      <div id="stepNumber" class="step-number" style="display:none;"></div>
+      <div id="stepText" class="step-text">Click microphone, then speak "START"</div>
+    </div>
+    
+    <div class="button-row">
+      <button class="action-btn primary" id="btnStart" onclick="manualStart()">START</button>
+      <button class="action-btn" id="btnNext" onclick="manualNext()">NEXT</button>
+      <button class="action-btn" id="btnPrev" onclick="manualPrev()">PREV</button>
+      <button class="action-btn" id="btnRepeat" onclick="manualRepeat()">REPEAT</button>
+    </div>
+    
+    <button class="btn btn-mic" id="micBtn" onclick="startVoice()">
+        START VOICE CONTROL
+    </button>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Analyzing with AI...</div>
+</div>
+
+<script>
+const SERVER = "http://127.0.0.1:5000";
+
+let steps = [], steps_en = [], steps_hi = [], steps_kn = [];
+let currentStep = 0;
+let currentAudio = null;
+let awaitingConsent = false;
+let pendingSteps = null;
+let pendingSummary = null;
+let isVoiceActive = false;
+let isSpeaking = false;
+let isProcessing = false;
+let welcomeSpoken = false;
+let recognition = null;
+
+const statusText = document.getElementById("statusText");
+const statusDot = document.getElementById("statusDot");
+const stepText = document.getElementById("stepText");
+const stepNumber = document.getElementById("stepNumber");
+const progressFill = document.getElementById("progressFill");
+const micBtn = document.getElementById("micBtn");
+const loadingOverlay = document.getElementById("loadingOverlay");
+const loadingText = document.getElementById("loadingText");
+const langSelect = document.getElementById("langSelect");
+const voiceSelect = document.getElementById("voiceSelect");
+const speedSelect = document.getElementById("speedSelect");
+
+function setStatus(msg, type) {
+    statusText.innerText = msg;
+    statusDot.className = `status-dot ${type}`;
+}
+
+function showLoading(message) {
+    loadingText.textContent = message;
+    loadingOverlay.classList.add("show");
+    setStatus(message, "loading");
+}
+
+function hideLoading() {
+    loadingOverlay.classList.remove("show");
+    if (isVoiceActive) {
+        setStatus("Voice active. Give commands", "listening");
+    } else {
+        setStatus("Ready", "ready");
+    }
+}
+
+function speak(text) {
+    if (!text) return;
+    if (isSpeaking) return;
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    
+    isSpeaking = true;
+    setStatus("Speaking...", "speaking");
+    
+    fetch(`${SERVER}/generate-audio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            text: text,
+            lang: langSelect.value,
+            voice: voiceSelect.value,
+            speed: speedSelect.value
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.audio) {
+            currentAudio = new Audio(`${SERVER}/tts/${data.audio}`);
+            currentAudio.onended = () => {
+                isSpeaking = false;
+                if (isVoiceActive && !isProcessing) setStatus("Voice active. Give commands", "listening");
+                else if (!isProcessing) setStatus("Ready", "ready");
+            };
+            currentAudio.play().catch(e => { isSpeaking = false; });
+        } else { isSpeaking = false; }
+    })
+    .catch(err => { isSpeaking = false; });
+}
+
+function updateProgress(stepIndex, totalSteps) {
+    if (totalSteps > 0) progressFill.style.width = `${((stepIndex + 1) / totalSteps) * 100}%`;
+}
+
+function updateStepsByLanguage() {
+    const currentLang = langSelect.value;
+    if (currentLang === "hi" && steps_hi.length) steps = steps_hi;
+    else if (currentLang === "kn" && steps_kn.length) steps = steps_kn;
+    else steps = steps_en;
+}
+
+function playStep() {
+    if (!steps.length) return;
+    if (isSpeaking) return;
+    
+    stepNumber.style.display = "block";
+    stepNumber.innerText = `Step ${currentStep + 1} of ${steps.length}`;
+    stepText.innerText = steps[currentStep];
+    updateProgress(currentStep, steps.length);
+    speak(steps[currentStep]);
+    
+    if (currentStep === steps.length - 1) {
+        setTimeout(() => {
+            if (!isSpeaking) speak("All steps completed. Guide finished.");
+        }, 1000);
+    }
+}
+
+function goFirst() { if (steps.length) { currentStep = 0; playStep(); } }
+function goNext() { if (steps.length && currentStep < steps.length - 1) { currentStep++; playStep(); } }
+function goPrev() { if (steps.length && currentStep > 0) { currentStep--; playStep(); } }
+function repeatStep() { if (steps.length) playStep(); }
+
+function manualStart() {
+    if (awaitingConsent) {
+        processCommand("start");
+    } else if (steps.length > 0) {
+        goFirst();
+    } else {
+        speak("No instructions loaded. Please upload a video or click load example.");
+    }
+}
+
+function manualNext() { if (steps.length > 0) goNext(); else speak("No instructions loaded."); }
+function manualPrev() { if (steps.length > 0) goPrev(); else speak("No instructions loaded."); }
+function manualRepeat() { if (steps.length > 0) repeatStep(); else speak("No instructions to repeat."); }
+
+document.getElementById("testVideoBtn").onclick = function() {
+    resetContent();
+    const testSteps = [
+        "First, boil 2 cups of water in a pot.",
+        "Then, add 2 teaspoons of tea leaves to the boiling water.",
+        "Next, add 2 teaspoons of sugar and let it boil for 2 minutes.",
+        "After that, add half a cup of milk and let it boil for another minute.",
+        "Finally, strain the tea into cups and serve hot."
+    ];
+    
+    steps_en = testSteps;
+    steps_hi = testSteps;
+    steps_kn = testSteps;
+    updateStepsByLanguage();
+    pendingSteps = steps;
+    awaitingConsent = true;
+    
+    stepText.innerText = 'Example loaded! 5 steps. Speak "START" to begin.';
+    setStatus('Example ready. Speak START', "ready");
+    speak("Example loaded with 5 steps. Say start to begin.");
+};
+
+function resetContent() {
+    steps = []; steps_en = []; steps_hi = []; steps_kn = [];
+    currentStep = 0;
+    pendingSteps = null;
+    pendingSummary = null;
+    awaitingConsent = false;
+    stepNumber.style.display = "none";
+    progressFill.style.width = "0%";
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    isSpeaking = false;
+}
+
+document.getElementById("uploadBtn").onclick = async () => {
+    const file = document.getElementById("fileInput").files[0];
+    if (!file) { speak("Please select a video file first."); return; }
+    if (isProcessing) { speak("Please wait, still processing."); return; }
+    
+    resetContent();
+    isProcessing = true;
+    showLoading("Analyzing your video. Please wait...");
+    speak("Analyzing your video. Please wait.");
+    
+    const formData = new FormData();
+    formData.append("video", file);
+    formData.append("user_id", localStorage.getItem("user_id") || "personal_user");
+    formData.append("video_type", "personal");
+    
+    try {
+        const res = await fetch(`${SERVER}/upload-video`, { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.filename) await analyzeVideo(data.filename);
+        else throw new Error(data.error || "Upload failed");
+    } catch(e) { speak("Upload failed. Please try again."); hideLoading(); }
+    isProcessing = false;
+};
+
+document.getElementById("linkBtn").onclick = async () => {
+    const link = document.getElementById("linkInput").value;
+    if (!link) { speak("Please paste a video link first."); return; }
+    if (isProcessing) { speak("Please wait, still processing."); return; }
+    
+    resetContent();
+    isProcessing = true;
+    showLoading("Analyzing your video. Please wait...");
+    speak("Analyzing your video. Please wait.");
+    
+    try {
+        const res = await fetch(`${SERVER}/upload-link`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ link, user_id: localStorage.getItem("user_id") || "personal_user", video_type: "personal" })
+        });
+        const data = await res.json();
+        if (data.filename) await analyzeVideo(data.filename);
+        else throw new Error(data.error || "Link processing failed");
+    } catch(e) { speak("Link processing failed."); hideLoading(); }
+    isProcessing = false;
+};
+
+async function analyzeVideo(filename) {
+    try {
+        const res = await fetch(`${SERVER}/analyze/${filename}`);
+        const result = await res.json();
+        hideLoading();
+        
+        if (result.type === "error") {
+            stepText.innerText = result.content_en;
+            speak(`Analysis failed. ${result.content_en}`);
+            return;
+        }
+        
+        if (result.type === "steps" && result.content_en && result.content_en.length > 0) {
+            steps_en = result.content_en;
+            steps_hi = result.content_hi || result.content_en;
+            steps_kn = result.content_kn || result.content_en;
+            updateStepsByLanguage();
+            pendingSteps = steps;
+            awaitingConsent = true;
+            const stepCount = steps.length;
+            stepText.innerText = `Found ${stepCount} instruction${stepCount !== 1 ? 's' : ''}! Speak "START" to begin.`;
+            speak(`Instructions detected. Found ${stepCount} instructions. Say start to begin.`);
+        } 
+        else if (result.type === "summary" && result.content_en) {
+            pendingSummary = result.content_en;
+            awaitingConsent = true;
+            stepText.innerText = "Summary generated. Say 'YES' to hear summary.";
+            speak("A summary is available. Say yes to hear the summary.");
+        }
+        else {
+            stepText.innerText = "No instructions detected.\n\nTips: Use 'First', 'Then', 'Next', 'Finally'";
+            speak("Unable to detect clear instructions. Try the example button.");
+        }
+    } catch(e) { hideLoading(); speak("Analysis failed. Please try again."); }
+}
+
+function startVoice() {
+    if (!('webkitSpeechRecognition' in window)) {
+        speak("Voice recognition requires Chrome or Edge browser.");
+        alert("Voice recognition requires Chrome or Edge browser.\n\nPlease click the lock icon in address bar and allow microphone access.");
+        return;
+    }
+    
+    if (recognition && isVoiceActive) {
+        recognition.stop();
+        isVoiceActive = false;
+        micBtn.classList.remove("active");
+        setStatus("Voice stopped", "ready");
+        speak("Voice control stopped.");
+        welcomeSpoken = false;
+        return;
+    }
+    
+    recognition = new webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    
+    recognition.onstart = () => {
+        isVoiceActive = true;
+        micBtn.classList.add("active");
+        setStatus("Voice active. Say a command", "listening");
+        if (!welcomeSpoken) {
+            if (awaitingConsent) {
+                speak("Say start to begin.");
+            } else if (steps.length > 0) {
+                speak("Say next, previous, repeat, or stop.");
+            } else {
+                speak("Say start guide to analyze a video.");
+            }
+            welcomeSpoken = true;
+        }
+    };
+    
+    recognition.onresult = (event) => {
+        let command = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+                command = event.results[i][0].transcript.toLowerCase().trim();
+                break;
+            }
+        }
+        if (command) {
+            console.log("Command:", command);
+            processCommand(command);
+        }
+    };
+    
+    recognition.onerror = (event) => {
+        if (event.error === "not-allowed") {
+            speak("Microphone access denied. Please allow microphone in browser settings.");
+            alert("Microphone access denied.\n\nPlease click the lock icon in address bar and allow microphone access.");
+            isVoiceActive = false;
+            micBtn.classList.remove("active");
+        } else if (event.error === "no-speech") {
+            setStatus("No speech detected. Try again.", "listening");
+        }
+    };
+    
+    recognition.onend = () => {
+        if (isVoiceActive) {
+            try { recognition.start(); } catch(e) { 
+                isVoiceActive = false;
+                micBtn.classList.remove("active");
+            }
+        }
+    };
+    
+    try { recognition.start(); } catch(e) { 
+        speak("Could not start voice recognition.");
+    }
+}
+
+function processCommand(cmd) {
+    if (isSpeaking) return;
+    
+    if (awaitingConsent && pendingSteps && pendingSteps.length > 0) {
+        if (cmd === "start" || cmd.includes("start")) {
+            awaitingConsent = false;
+            steps = pendingSteps;
+            currentStep = 0;
+            stepNumber.style.display = "block";
+            stepNumber.innerText = `Step 1 of ${steps.length}`;
+            stepText.innerText = steps[0];
+            playStep();
+        }
+        return;
+    }
+    
+    if (awaitingConsent && pendingSummary) {
+        if (cmd === "yes" || cmd.includes("yes")) {
+            awaitingConsent = false;
+            speak(pendingSummary);
+        } else if (cmd === "no" || cmd.includes("no")) {
+            awaitingConsent = false;
+            speak("Cancelled.");
+        }
+        return;
+    }
+    
+    if (steps.length > 0) {
+        if (cmd === "next" || cmd.includes("next")) { goNext(); return; }
+        if (cmd === "previous" || cmd.includes("previous") || cmd === "back") { goPrev(); return; }
+        if (cmd === "repeat" || cmd.includes("repeat") || cmd === "again") { repeatStep(); return; }
+        if (cmd === "first" || cmd === "beginning") { goFirst(); return; }
+        if (cmd === "stop" || cmd === "pause" || cmd.includes("stop")) {
+            if (currentAudio) { currentAudio.pause(); setStatus("Stopped", "ready"); speak("Stopped."); }
+            return;
+        }
+        const stepMatch = cmd.match(/step (\d+)/);
+        if (stepMatch) {
+            const stepNum = parseInt(stepMatch[1]) - 1;
+            if (stepNum >= 0 && stepNum < steps.length) { currentStep = stepNum; playStep(); return; }
+        }
+    }
+    
+    if (cmd === "english" || cmd.includes("english")) { langSelect.value = "en"; updateStepsByLanguage(); speak("English selected."); return; }
+    if (cmd === "hindi" || cmd.includes("hindi")) { langSelect.value = "hi"; updateStepsByLanguage(); speak("Hindi selected."); return; }
+    if (cmd === "kannada" || cmd.includes("kannada")) { langSelect.value = "kn"; updateStepsByLanguage(); speak("Kannada selected."); return; }
+    if (cmd === "female" || cmd.includes("female")) { voiceSelect.value = "female"; speak("Female voice."); return; }
+    if (cmd === "male" || cmd.includes("male")) { voiceSelect.value = "male"; speak("Male voice."); return; }
+    if (cmd === "slow" || cmd.includes("slow")) { speedSelect.value = "slow"; speak("Slow speed."); return; }
+    if (cmd === "fast" || cmd.includes("fast")) { speedSelect.value = "fast"; speak("Fast speed."); return; }
+    if (cmd === "normal" || cmd.includes("normal")) { speedSelect.value = "normal"; speak("Normal speed."); return; }
+}
+
+langSelect.onchange = function() { updateStepsByLanguage(); };
+</script>
+</body>
+</html>

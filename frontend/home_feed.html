@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>Home Feed - AI Video Guide</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: #0b0f25;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    color: #ffffff;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: #1c1c35; }
+::-webkit-scrollbar-thumb { background: #00d4ff; border-radius: 5px; }
+
+.navbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    background: #020617;
+    padding: 15px 5%;
+    border-bottom: 1px solid #1e2040;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.navbar-brand {
+    font-weight: 600;
+    color: #00d4ff;
+    font-size: clamp(16px, 5vw, 20px);
+}
+
+.nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.nav-links a {
+    color: #94a3b8;
+    text-decoration: none;
+    transition: color 0.2s;
+    font-size: clamp(12px, 4vw, 14px);
+}
+
+.nav-links a:hover { color: #00d4ff; }
+
+.container {
+    width: 90%;
+    max-width: 1400px;
+    margin: 20px auto;
+    padding: 0 10px;
+}
+
+.search-bar {
+    width: 100%;
+    padding: 14px 20px;
+    margin-bottom: 25px;
+    border: 1px solid #2a2a50;
+    border-radius: 30px;
+    background: #1c1c35;
+    color: #ffffff;
+    font-size: 16px;
+}
+
+.search-bar:focus {
+    outline: none;
+    border-color: #00d4ff;
+}
+
+.section-title {
+    margin: 25px 0 15px 0;
+    font-size: clamp(18px, 5vw, 22px);
+    color: #00d4ff;
+    border-left: 3px solid #00d4ff;
+    padding-left: 12px;
+}
+
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+    margin-top: 15px;
+}
+
+.video-card {
+    background: #141428;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid #1e2040;
+}
+
+.video-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px -5px rgba(0,0,0,0.3);
+    border-color: #00d4ff;
+}
+
+.video-card video {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    background: #000000;
+    cursor: pointer;
+}
+
+.video-info {
+    padding: 12px;
+}
+
+.video-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: 15px;
+    color: #f1f5f9;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.video-meta {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+
+.video-stats {
+    display: flex;
+    gap: 15px;
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 10px;
+}
+
+.video-actions {
+    display: flex;
+    gap: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #1e2040;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.action-btn:hover {
+    background: #1c1c35;
+    color: #00d4ff;
+}
+
+.action-btn.liked {
+    color: #ef4444;
+}
+
+.comments-section {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #1e2040;
+    display: none;
+}
+
+.comments-section.show {
+    display: block;
+}
+
+.comment-input {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.comment-input input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #2a2a50;
+    border-radius: 8px;
+    background: #1c1c35;
+    color: #ffffff;
+    font-size: 12px;
+}
+
+.comment-input input:focus {
+    outline: none;
+    border-color: #00d4ff;
+}
+
+.comment-input button {
+    padding: 8px 16px;
+    background: #00d4ff;
+    border: none;
+    border-radius: 8px;
+    color: #0b0f25;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.comments-list {
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.comment-item {
+    padding: 8px 0;
+    font-size: 12px;
+    border-bottom: 1px solid #1e2040;
+}
+
+.comment-user {
+    color: #00d4ff;
+    font-weight: 600;
+    margin-right: 8px;
+}
+
+.comment-text {
+    color: #cbd5e1;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.95);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: #141428;
+    border: 1px solid #00d4ff;
+    border-radius: 16px;
+    padding: 25px;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+}
+
+.modal-content h3 {
+    color: #00d4ff;
+    margin-bottom: 15px;
+}
+
+.share-link {
+    background: #1c1c35;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 15px 0;
+    word-break: break-all;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.modal button {
+    padding: 10px 20px;
+    background: #00d4ff;
+    border: none;
+    border-radius: 8px;
+    color: #0b0f25;
+    cursor: pointer;
+    font-weight: 600;
+    margin: 5px;
+}
+
+.modal button.close-btn {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.skeleton-card {
+    background: #141428;
+    border-radius: 12px;
+    height: 350px;
+    border: 1px solid #1e2040;
+}
+
+.skeleton-video {
+    height: 200px;
+    background: linear-gradient(90deg, #1c1c35 25%, #2a2a50 50%, #1c1c35 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+.skeleton-title {
+    height: 16px;
+    width: 80%;
+    margin: 12px;
+    background: linear-gradient(90deg, #1c1c35 25%, #2a2a50 50%, #1c1c35 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+}
+
+.skeleton-meta {
+    height: 12px;
+    width: 60%;
+    margin: 0 12px 12px 12px;
+    background: linear-gradient(90deg, #1c1c35 25%, #2a2a50 50%, #1c1c35 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px;
+    background: #141428;
+    border-radius: 16px;
+    color: #64748b;
+    font-size: 16px;
+    grid-column: 1 / -1;
+    border: 1px solid #1e2040;
+}
+
+.load-more {
+    text-align: center;
+    padding: 30px;
+}
+
+.load-more button {
+    padding: 12px 35px;
+    background: linear-gradient(90deg, #00cfe8, #00d4ff);
+    border: none;
+    border-radius: 30px;
+    color: #0b0f25;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #10b981;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    z-index: 1001;
+    font-size: 13px;
+    animation: slideIn 0.3s ease;
+}
+
+.toast.error {
+    background: #dc2626;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.debug-info {
+    background: #1c1c35;
+    padding: 10px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #00d4ff;
+    display: none;
+}
+
+.debug-info.show {
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .navbar { flex-direction: column; gap: 10px; text-align: center; }
+    .container { width: 95%; }
+    .video-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="navbar">
+    <div class="navbar-brand">AI VIDEO GUIDE</div>
+    <div class="nav-links">
+        <a href="home_feed.html">Home</a>
+        <a href="upload_video.html">Upload</a>
+        <a href="home.html">AI Guide</a>
+        <a href="my_account.html">My Account</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="debug-info" id="debugInfo">
+        <strong>Debug Info:</strong> <span id="debugMessage">Loading...</span>
+    </div>
+    
+    <input type="text" class="search-bar" id="searchInput" placeholder="Search videos..." onkeyup="handleSearch(this.value)">
+    
+    <div class="section-title">Videos</div>
+    <div class="video-grid" id="videoGrid"></div>
+    
+    <div class="load-more" id="loadMoreBtn" style="display: none;">
+        <button onclick="loadMoreVideos()">Load More</button>
+    </div>
+</div>
+
+<div id="shareModal" class="modal">
+    <div class="modal-content">
+        <h3>Share Video</h3>
+        <div class="share-link" id="shareLink"></div>
+        <button onclick="copyShareLink()">Copy Link</button>
+        <button onclick="closeShareModal()" class="close-btn">Close</button>
+    </div>
+</div>
+
+<script>
+const SERVER = "http://127.0.0.1:5000";
+const user_id = localStorage.getItem("user_id") || "anonymous";
+
+let currentPage = 1;
+let isLoading = false;
+let hasMore = true;
+let allVideos = [];
+let isSearching = false;
+let currentShareFilename = null;
+
+const videoGrid = document.getElementById("videoGrid");
+const loadMoreBtn = document.getElementById("loadMoreBtn");
+const debugInfo = document.getElementById("debugInfo");
+const debugMessage = document.getElementById("debugMessage");
+
+function showDebug(message, show = true) {
+    if (show) {
+        debugInfo.classList.add("show");
+        debugMessage.textContent = message;
+        console.log("DEBUG:", message);
+    } else {
+        debugInfo.classList.remove("show");
+    }
+}
+
+function showToast(message, isError = false) {
+    const toast = document.createElement("div");
+    toast.className = "toast" + (isError ? " error" : "");
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function openShareModal(filename) {
+    currentShareFilename = filename;
+    document.getElementById("shareLink").textContent = `${window.location.origin}/assistant.html?video=${filename}`;
+    document.getElementById("shareModal").classList.add("show");
+}
+
+function closeShareModal() {
+    document.getElementById("shareModal").classList.remove("show");
+}
+
+function copyShareLink() {
+    const link = document.getElementById("shareLink").textContent;
+    navigator.clipboard.writeText(link);
+    showToast("Link copied to clipboard!");
+    closeShareModal();
+}
+
+async function likeVideo(filename, btnElement) {
+    if (!user_id || user_id === "anonymous") {
+        showToast("Please login to like videos", true);
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${SERVER}/like-video`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id, filename })
+        });
+        
+        const data = await response.json();
+        const likeSpan = btnElement.querySelector(".like-count");
+        let currentLikes = parseInt(likeSpan.textContent);
+        
+        if (data.message === "liked") {
+            likeSpan.textContent = currentLikes + 1;
+            btnElement.classList.add("liked");
+        } else {
+            likeSpan.textContent = Math.max(0, currentLikes - 1);
+            btnElement.classList.remove("liked");
+        }
+    } catch(e) { 
+        showToast("Failed to like", true); 
+    }
+}
+
+async function toggleComments(filename, commentsDivId) {
+    const commentsDiv = document.getElementById(commentsDivId);
+    if (commentsDiv.classList.contains("show")) {
+        commentsDiv.classList.remove("show");
+        return;
+    }
+    commentsDiv.classList.add("show");
+    await loadComments(filename, commentsDivId);
+}
+
+async function loadComments(filename, commentsDivId) {
+    const safeId = filename.replace(/[^a-zA-Z0-9]/g, '_');
+    const commentsList = document.getElementById(`comments-list-${safeId}`);
+    if (!commentsList) return;
+    
+    commentsList.innerHTML = '<div style="text-align:center; padding:10px;">Loading comments...</div>';
+    
+    try {
+        const response = await fetch(`${SERVER}/get-comments/${filename}`);
+        const comments = await response.json();
+        
+        if (comments.length === 0) {
+            commentsList.innerHTML = '<div style="text-align:center; padding:10px; color:#64748b;">No comments yet. Be the first!</div>';
+            return;
+        }
+        
+        commentsList.innerHTML = comments.map(c => `
+            <div class="comment-item">
+                <span class="comment-user">${escapeHtml(c.user_id || "Anonymous")}:</span>
+                <span class="comment-text">${escapeHtml(c.text)}</span>
+            </div>
+        `).join('');
+    } catch(e) { 
+        commentsList.innerHTML = '<div style="text-align:center; padding:10px;">Failed to load comments</div>'; 
+    }
+}
+
+async function addComment(filename, inputId, commentsDivId) {
+    const input = document.getElementById(inputId);
+    const text = input.value.trim();
+    
+    if (!text) { 
+        showToast("Please enter a comment", true); 
+        return; 
+    }
+    
+    if (!user_id || user_id === "anonymous") { 
+        showToast("Please login to comment", true); 
+        return; 
+    }
+    
+    try {
+        await fetch(`${SERVER}/add-comment`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename, user_id, text })
+        });
+        
+        input.value = "";
+        await loadComments(filename, commentsDivId);
+        showToast("Comment added!");
+    } catch(e) { 
+        showToast("Failed to add comment", true); 
+    }
+}
+
+async function incrementViews(filename) {
+    try {
+        await fetch(`${SERVER}/increment-views/${filename}`, { method: "POST" });
+    } catch(e) {}
+}
+
+function renderVideoCard(video) {
+    const filename = video.filename;
+    const safeId = filename.replace(/[^a-zA-Z0-9]/g, '_');
+    const commentsDivId = `comments-${safeId}`;
+    const commentInputId = `comment-input-${safeId}`;
+    
+    return `
+        <div class="video-card" data-filename="${filename}">
+            <video preload="metadata" onclick="incrementViews('${filename}'); openVideo('${filename}')">
+                <source src="${SERVER}/uploads/${encodeURIComponent(filename)}" type="video/mp4">
+            </video>
+            <div class="video-info">
+                <div class="video-title">${escapeHtml(video.title || 'Video')}</div>
+                <div class="video-meta">${escapeHtml(video.category || 'General')} • By ${escapeHtml(video.user_id ? video.user_id.substring(0, 10) : 'User')}</div>
+                <div class="video-stats">
+                    <span>Likes: <span class="like-count">${video.likes || 0}</span></span>
+                    <span>Views: ${video.views || 0}</span>
+                    <span>Comments: <span class="comment-count">${video.comments_count || 0}</span></span>
+                </div>
+                <div class="video-actions">
+                    <button class="action-btn" onclick="event.stopPropagation(); likeVideo('${filename}', this)">
+                        Like <span class="like-count">${video.likes || 0}</span>
+                    </button>
+                    <button class="action-btn" onclick="event.stopPropagation(); toggleComments('${filename}', '${commentsDivId}')">
+                        Comment
+                    </button>
+                    <button class="action-btn" onclick="event.stopPropagation(); openShareModal('${filename}')">
+                        Share
+                    </button>
+                </div>
+                <div id="${commentsDivId}" class="comments-section">
+                    <div class="comment-input">
+                        <input type="text" id="${commentInputId}" placeholder="Write a comment...">
+                        <button onclick="addComment('${filename}', '${commentInputId}', '${commentsDivId}')">Post</button>
+                    </div>
+                    <div id="comments-list-${safeId}" class="comments-list"></div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function loadVideos(reset = true) {
+    if (isLoading) return;
+    
+    if (reset) {
+        currentPage = 1;
+        hasMore = true;
+        allVideos = [];
+        videoGrid.innerHTML = '<div class="skeleton-card"><div class="skeleton-video"></div><div class="skeleton-title"></div><div class="skeleton-meta"></div></div>'.repeat(3);
+        loadMoreBtn.style.display = "none";
+        showDebug("Loading videos from server...");
+    }
+    
+    isLoading = true;
+    
+    try {
+        const url = `${SERVER}/videos?page=${currentPage}&limit=20`;
+        showDebug(`Fetching: ${url}`);
+        
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const videos = await response.json();
+        showDebug(`Received ${videos.length} videos from server`);
+        
+        // Log each video for debugging
+        videos.forEach((v, i) => {
+            showDebug(`Video ${i+1}: ${v.title} (type: ${v.video_type || 'unknown'})`);
+        });
+        
+        const validVideos = videos.filter(v => v.title && v.title !== "Untitled" && v.title !== "Untitled Video");
+        showDebug(`Valid videos after filtering: ${validVideos.length}`);
+        
+        if (reset) {
+            allVideos = validVideos;
+        } else {
+            allVideos = [...allVideos, ...validVideos];
+        }
+        
+        if (validVideos.length === 0 || validVideos.length < 20) {
+            hasMore = false;
+            loadMoreBtn.style.display = "none";
+            if (allVideos.length === 0) {
+                showDebug("No videos found. Make sure you have uploaded videos with video_type='public'");
+            }
+        } else {
+            loadMoreBtn.style.display = "block";
+        }
+        
+        renderVideoGrid(allVideos);
+        if (validVideos.length > 0) currentPage++;
+        
+    } catch(error) {
+        console.error("Error:", error);
+        showDebug(`Error: ${error.message}`, true);
+        videoGrid.innerHTML = `<div class="empty-state">Cannot connect to server at ${SERVER}</div>`;
+    }
+    
+    isLoading = false;
+}
+
+function renderVideoGrid(videos) {
+    if (!videos || videos.length === 0) {
+        videoGrid.innerHTML = '<div class="empty-state">No videos uploaded yet. Upload your first video!</div>';
+        return;
+    }
+    
+    videoGrid.innerHTML = videos.map(v => renderVideoCard(v)).join('');
+    showDebug(`Rendered ${videos.length} videos`);
+}
+
+function loadMoreVideos() {
+    if (!isLoading && hasMore && !isSearching) {
+        loadVideos(false);
+    }
+}
+
+let searchTimeout = null;
+
+async function handleSearch(query) {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    
+    if (!query.trim()) {
+        isSearching = false;
+        loadMoreBtn.style.display = "block";
+        await loadVideos(true);
+        return;
+    }
+    
+    searchTimeout = setTimeout(async () => {
+        isSearching = true;
+        loadMoreBtn.style.display = "none";
+        videoGrid.innerHTML = '<div class="skeleton-card"><div class="skeleton-video"></div><div class="skeleton-title"></div><div class="skeleton-meta"></div></div>'.repeat(3);
+        
+        try {
+            const response = await fetch(`${SERVER}/search?q=${encodeURIComponent(query)}`);
+            const results = await response.json();
+            const validResults = results.filter(v => v.title && v.title !== "Untitled" && v.title !== "Untitled Video");
+            
+            if (validResults.length === 0) {
+                videoGrid.innerHTML = `<div class="empty-state">No videos found for "${escapeHtml(query)}"</div>`;
+            } else {
+                renderVideoGrid(validResults);
+            }
+        } catch(e) {
+            videoGrid.innerHTML = `<div class="empty-state">Search failed</div>`;
+        }
+    }, 500);
+}
+
+function openVideo(filename) {
+    if (!filename) return;
+    incrementViews(filename);
+    window.location.href = `assistant.html?video=${encodeURIComponent(filename)}`;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function handleScroll() {
+    if (isSearching || !hasMore || isLoading) return;
+    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 500) {
+        loadMoreVideos();
+    }
+}
+
+async function init() {
+    try {
+        const testResponse = await fetch(`${SERVER}/videos?page=1&limit=1`);
+        if (!testResponse.ok) throw new Error(`HTTP ${testResponse.status}`);
+        showDebug("Connected to server successfully");
+    } catch(error) {
+        showDebug(`Cannot connect to server: ${error.message}`, true);
+        videoGrid.innerHTML = `<div class="empty-state">Cannot connect to server at ${SERVER}</div>`;
+        return;
+    }
+    await loadVideos(true);
+    window.addEventListener('scroll', handleScroll);
+}
+
+init();
+</script>
+</body>
+</html>

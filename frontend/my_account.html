@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>My Account</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: #0f172a;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    color: white;
+}
+
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #020617;
+    padding: 15px 30px;
+    border-bottom: 1px solid #1e293b;
+}
+
+.nav-links a {
+    margin-right: 20px;
+    color: #94a3b8;
+    text-decoration: none;
+}
+
+.nav-links a:hover { color: white; }
+
+.container {
+    width: 90%;
+    max-width: 1200px;
+    margin: 40px auto;
+}
+
+.profile-header {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 30px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.profile-header h1 {
+    color: #38bdf8;
+    margin-bottom: 10px;
+}
+
+.upload-btn {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    margin-top: 15px;
+    transition: transform 0.1s, opacity 0.2s;
+}
+
+.upload-btn:hover { opacity: 0.9; }
+.upload-btn:active { transform: scale(0.98); }
+
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 24px;
+}
+
+.video-card {
+    background: #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+    padding: 16px;
+}
+
+.video-card video {
+    width: 100%;
+    border-radius: 8px;
+    max-height: 200px;
+}
+
+.video-title {
+    font-weight: 600;
+    margin: 12px 0 8px;
+    font-size: 16px;
+}
+
+.video-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.badge-public {
+    background: #22c55e;
+    color: white;
+}
+
+.badge-personal {
+    background: #f59e0b;
+    color: white;
+}
+
+.delete-btn {
+    width: 100%;
+    padding: 10px;
+    margin-top: 12px;
+    background: #dc2626;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.delete-btn:hover { background: #b91c1c; }
+
+.empty-state {
+    text-align: center;
+    padding: 60px;
+    background: #1e293b;
+    border-radius: 16px;
+    color: #64748b;
+}
+
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #94a3b8;
+}
+</style>
+</head>
+<body>
+<div class="navbar">
+    <div style="font-weight: bold; color: #38bdf8;">AI Video Guide</div>
+    <div class="nav-links">
+        <a href="home_feed.html">Home</a>
+        <a href="upload_video.html">Upload</a>
+        <a href="home.html">AI Guide</a>
+        <a href="my_account.html">My Account</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="profile-header">
+        <h1>👤 My Account</h1>
+        <p id="usernameDisplay">Loading...</p>
+        <button class="upload-btn" onclick="window.location.href='upload_video.html'">
+            ➕ Upload New Public Video
+        </button>
+    </div>
+    
+    <h2 style="margin-bottom: 20px;">📹 My Videos</h2>
+    <div id="videosContainer" class="video-grid">
+        <div class="loading">Loading your videos...</div>
+    </div>
+</div>
+
+<script>
+const SERVER = "http://127.0.0.1:5000";
+const user_id = localStorage.getItem("user_id");
+const username = localStorage.getItem("username");
+
+// Display username
+if (username) {
+    document.getElementById("usernameDisplay").innerHTML = `Welcome, ${username}! 🎉`;
+} else if (user_id) {
+    document.getElementById("usernameDisplay").innerHTML = `User ID: ${user_id.substring(0, 8)}...`;
+} else {
+    document.getElementById("usernameDisplay").innerHTML = '<a href="index.html" style="color: #38bdf8;">Please login</a>';
+}
+
+async function loadMyVideos() {
+    if (!user_id || user_id === 'null') {
+        document.getElementById("videosContainer").innerHTML = `
+            <div class="empty-state">
+                🔒 Please login to see your videos<br>
+                <a href="index.html" style="color: #38bdf8;">Go to Login</a>
+            </div>
+        `;
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${SERVER}/my-videos?user_id=${user_id}`);
+        const videos = await response.json();
+        
+        const container = document.getElementById("videosContainer");
+        
+        if (!videos || videos.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    📭 You haven't uploaded any videos yet<br>
+                    <button onclick="window.location.href='upload_video.html'" style="margin-top: 15px; padding: 10px 20px; background: #22c55e; border: none; border-radius: 8px; color: white; cursor: pointer;">
+                        Upload Your First Video
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = videos.map(video => {
+            const videoType = video.video_type || 'public';
+            const badgeClass = videoType === 'public' ? 'badge-public' : 'badge-personal';
+            const badgeText = videoType === 'public' ? '🌍 Public' : '🔒 Personal (AI Guide)';
+            
+            return `
+            <div class="video-card" id="video-${video.filename.replace(/[^a-zA-Z0-9]/g, '_')}">
+                <video controls preload="metadata">
+                    <source src="${SERVER}/uploads/${video.filename}" type="video/mp4">
+                </video>
+                <div class="video-title">${escapeHtml(video.title || 'Untitled')}</div>
+                <div>
+                    <span class="video-badge ${badgeClass}">${badgeText}</span>
+                </div>
+                <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
+                    ❤️ ${video.likes || 0} likes
+                </div>
+                <button class="delete-btn" onclick="deleteVideo('${video.filename}')">
+                    🗑️ Delete Video
+                </button>
+            </div>
+        `}).join('');
+        
+    } catch(e) {
+        console.error("Error loading videos:", e);
+        document.getElementById("videosContainer").innerHTML = `
+            <div class="empty-state">❌ Error loading videos. Make sure server is running.</div>
+        `;
+    }
+}
+
+async function deleteVideo(filename) {
+    if (!confirm("Are you sure you want to delete this video? This action cannot be undone.")) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${SERVER}/delete-video/${filename}?user_id=${user_id}`, {
+            method: "DELETE"
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const videoId = `video-${filename.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            const element = document.getElementById(videoId);
+            if (element) {
+                element.remove();
+            }
+            
+            alert("✅ Video deleted successfully!");
+            
+            const remaining = document.querySelectorAll('.video-card').length;
+            if (remaining === 0) {
+                loadMyVideos();
+            }
+        } else {
+            alert("❌ Failed to delete: " + (result.error || "Unknown error"));
+        }
+        
+    } catch(e) {
+        console.error("Delete error:", e);
+        alert("❌ Network error. Could not delete video.");
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Check login status
+if (!user_id || user_id === 'null') {
+    const container = document.getElementById("videosContainer");
+    container.innerHTML = `
+        <div class="empty-state">
+            🔒 Please login to view your videos<br>
+            <button onclick="window.location.href='index.html'" style="margin-top: 15px; padding: 10px 20px; background: #3b82f6; border: none; border-radius: 8px; color: white; cursor: pointer;">
+                Go to Login
+            </button>
+        </div>
+    `;
+} else {
+    loadMyVideos();
+}
+</script>
+</body>
+</html>
